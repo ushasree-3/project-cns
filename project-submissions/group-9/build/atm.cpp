@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <regex>
 #include "secret_key.h"  // Include the header file with the secret key
+#include "encryption.h"
 
 const int DEFAULT_PORT = 3000;
 const char* CLIENT_CERT = "client.crt";
@@ -23,10 +24,10 @@ const char* CA_FILE = "ca.crt";
 // Validation patterns
 const std::regex ACCOUNT_PATTERN("^[a-z0-9_.-]{1,122}$");
 const std::regex FILENAME_PATTERN("^(?!\\.\\.)(?!\\.)([a-z0-9_.-]{1,127})$");
-const std::regex IP_PATTERN("^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\."
-                            "(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\."
-                            "(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\."
-                            "(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$");
+const std::regex IP_PATTERN("^(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9]?)\\."
+                            "(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9]?)\\."
+                            "(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9]?)\\."
+                            "(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9]?)$");
 const std::regex AMOUNT_PATTERN(R"(^\d{1,10}(\.\d{1,2})?$)");
 
 SSL_CTX* InitClientCTX();
@@ -177,7 +178,9 @@ int main(int argc, char* argv[]) {
         }
     } else {
         // For other operations, ensure the card file exists
+        decryptFile(cardFile);
         std::string pin = readCardFile(cardFile);
+        encryptFile(cardFile);
         if (pin.empty()) {
             std::cerr << "Invalid or missing card file" << std::endl;
             return 255;
@@ -210,19 +213,24 @@ bool createCardFile(const std::string& cardFile, int pin) {
         std::cerr << "Error: Could not create card file " << cardFile << std::endl;
         return false;
     }
-    cardStream << pin << std::endl;
-    cardStream.close();
+    cardStream << pin << std::endl; // Write the PIN
+    cardStream.close(); // Close before encryption
+    encryptFile(cardFile); // Encrypt the file after writing
     return true;
 }
 
 std::string readCardFile(const std::string& cardFile) {
+    // decryptFile(cardFile); // Decrypt the file before reading
     std::ifstream infile(cardFile);
     std::string line;
 
     if (infile.is_open()) {
         std::getline(infile, line); // Read the PIN from the card file
+        infile.close();
         return line;
     }
+    std::cerr << "Failed to open card file after decryption." << std::endl;
+    // encryptFile(cardFile); // Re-encrypt the file if read fails
     return "";
 }
 
